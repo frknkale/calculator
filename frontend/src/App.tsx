@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { calculate } from './api';
 import { operations, parseOperand } from './operations';
+import { formatResult } from './formatResult';
 
 type Answer = { expression: string; value: string };
 
@@ -13,6 +14,7 @@ export default function App() {
   const [pending, setPending] = useState(false);
   const firstLabel = operation.unary ? 'Number' : operation.value === 'percentage' ? 'Number (x)' : 'First number';
   const secondLabel = operation.value === 'percentage' ? 'Percent (y)' : 'Second number';
+  const displayedAnswer = answer ? formatResult(answer.value) : '';
 
   function clearFeedback() {
     setError('');
@@ -83,8 +85,8 @@ export default function App() {
 
         <div className={`result ${answer ? 'has-answer' : ''}`} role="status" aria-live="polite" aria-atomic="true">
           <div className="result-top"><span>Result</span><span aria-hidden="true">=</span></div>
-          <p className="result-value">{pending ? '…' : answer ? answer.value : '—'}</p>
-          <p className="result-caption">{answer ? `${answer.expression} = ${answer.value}` : pending ? 'Calculating…' : ''}</p>
+          <p className="result-value" title={answer?.value}>{pending ? '…' : answer ? displayedAnswer : '—'}</p>
+          <p className="result-caption">{answer ? `${answer.expression} = ${displayedAnswer}` : pending ? 'Calculating…' : ''}</p>
         </div>
         <p className="card-footer">Press Enter to calculate.</p>
       </section>

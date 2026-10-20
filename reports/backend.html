@@ -141,7 +141,6 @@ package calculator
 import (
         "errors"
         "regexp"
-        "strconv"
 
         "github.com/shopspring/decimal"
 )
@@ -161,7 +160,7 @@ var (
 
 // Calculate accepts and returns decimal strings to preserve their digits.
 // Percentage means b percent of a. Power defines 0^0 as 1.
-func Calculate(operation string, a, b *string) (string, error) <span class="cov8" title="95">{
+func Calculate(operation string, a, b *string) (string, error) <span class="cov9" title="95">{
         switch operation </span>{
         case "add", "subtract", "multiply", "divide", "power", "percentage":<span class="cov8" title="77">
                 if b == nil </span><span class="cov2" title="2">{
@@ -175,7 +174,7 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov8
                 return "", ErrOperation</span>
         }
         <span class="cov8" title="90">x, err := parseOperand(a)
-        if err != nil </span><span class="cov4" title="10">{
+        if err != nil </span><span class="cov5" title="10">{
                 return "", err
         }</span>
         <span class="cov8" title="80">var y decimal.Decimal
@@ -188,7 +187,7 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov8
 
         <span class="cov8" title="79">var result decimal.Decimal
         switch operation </span>{
-        case "add":<span class="cov5" title="18">
+        case "add":<span class="cov6" title="18">
                 result = x.Add(y)</span>
         case "subtract":<span class="cov2" title="2">
                 result = x.Sub(y)</span>
@@ -235,31 +234,15 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov8
         <span class="cov8" title="73">if err != nil </span><span class="cov2" title="2">{
                 return "", ErrResult
         }</span>
-        <span class="cov8" title="71">return formatResult(result), nil</span>
+        <span class="cov8" title="71">return result.String(), nil</span>
 }
 
 // order is the exponent in a value's normalized scientific notation.
-func order(value decimal.Decimal) int32 <span class="cov10" title="202">{
+func order(value decimal.Decimal) int32 <span class="cov8" title="72">{
         return int32(value.NumDigits()) + value.Exponent() - 1
 }</span>
 
-func formatResult(value decimal.Decimal) string <span class="cov8" title="71">{
-        if value.IsZero() </span><span class="cov4" title="6">{
-                return "0"
-        }</span>
-        <span class="cov8" title="65">value = value.Round(significantDigits - 1 - order(value))
-        exponent := order(value)
-        if exponent &gt;= significantDigits || exponent &lt; -6 </span><span class="cov6" title="28">{
-                suffix := strconv.Itoa(int(exponent))
-                if exponent &gt;= 0 </span><span class="cov5" title="12">{
-                        suffix = "+" + suffix
-                }</span>
-                <span class="cov6" title="28">return value.Shift(-exponent).String() + "e" + suffix</span>
-        }
-        <span class="cov7" title="37">return value.String()</span>
-}
-
-func parseOperand(value *string) (decimal.Decimal, error) <span class="cov9" title="162">{
+func parseOperand(value *string) (decimal.Decimal, error) <span class="cov10" title="162">{
         if value == nil || len(*value) &gt; 128 || !decimalSyntax.MatchString(*value) </span><span class="cov4" title="8">{
                 return decimal.Decimal{}, ErrOperand
         }</span>

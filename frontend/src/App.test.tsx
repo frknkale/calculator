@@ -56,20 +56,23 @@ describe('calculator form', () => {
   });
 
   it.each([
-    ['0.1', '0.2', '0.3'],
-    ['10000000000000000000000000', '0.2', '1e+25'],
-    ['9007199254740992', '1', '9007199254740993'],
-  ])('sends decimal strings and displays the result for %s plus %s', async (a, b, result) => {
+    ['0.1', '0.2', '0.3', '0.3'],
+    ['10000000000000000000000000', '0.2', '10000000000000000000000000.2', '1e+25'],
+    ['9007199254740992', '1', '9007199254740993', '9007199254740993'],
+    ['1234567890123456', '0.7', '1234567890123456.7', '1234567890123456.7'],
+    ['12345678901234567890', '0', '12345678901234567890', '12345678901234567890'],
+  ])('sends decimal strings and displays the result for %s plus %s', async (a, b, result, displayed) => {
     calculateMock.mockResolvedValue(result);
     render(<App />);
     const user = await fillBinary(a, b);
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
     expect(calculateMock).toHaveBeenCalledWith({ operation: 'add', a, b });
-    expect(await screen.findByText(`${a} + ${b} = ${result}`)).toBeInTheDocument();
+    expect(await screen.findByText(`${a} + ${b} = ${displayed}`)).toBeInTheDocument();
+    expect(screen.getByTitle(result)).toHaveTextContent(displayed);
   });
 
   it('displays tiny power results in scientific notation', async () => {
-    calculateMock.mockResolvedValue('1e-35');
+    calculateMock.mockResolvedValue('0.' + '0'.repeat(34) + '1');
     render(<App />);
     const user = await fillBinary('0.1', '35');
     await user.click(screen.getByRole('button', { name: 'Power' }));
@@ -80,7 +83,9 @@ describe('calculator form', () => {
 
   it.each([
     ['Square root', 'sqrt', '9', '3', '√(9) = 3'],
-  ] as const)('submits %s with only one operand', async (label, operation, input, result, expression) => {
+    ['Square root', 'sqrt', '1.232134e-33', '0.00000000000000003510176633732268465', '√(1.232134e-33) = 3.51017663373227e-17'],
+    ['Square root', 'sqrt', '1.232134e-32', '0.00000000000000011100153152096596185', '√(1.232134e-32) = 1.11001531520966e-16'],
+  ] as const)('submits %s (%s) for %s with only one operand', async (label, operation, input, result, expression) => {
     calculateMock.mockResolvedValue(result);
     render(<App />);
     const user = userEvent.setup();

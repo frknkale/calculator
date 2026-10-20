@@ -4,7 +4,6 @@ package calculator
 import (
 	"errors"
 	"regexp"
-	"strconv"
 
 	"github.com/shopspring/decimal"
 )
@@ -98,28 +97,12 @@ func Calculate(operation string, a, b *string) (string, error) {
 	if err != nil {
 		return "", ErrResult
 	}
-	return formatResult(result), nil
+	return result.String(), nil
 }
 
 // order is the exponent in a value's normalized scientific notation.
 func order(value decimal.Decimal) int32 {
 	return int32(value.NumDigits()) + value.Exponent() - 1
-}
-
-func formatResult(value decimal.Decimal) string {
-	if value.IsZero() {
-		return "0"
-	}
-	value = value.Round(significantDigits - 1 - order(value))
-	exponent := order(value)
-	if exponent >= significantDigits || exponent < -6 {
-		suffix := strconv.Itoa(int(exponent))
-		if exponent >= 0 {
-			suffix = "+" + suffix
-		}
-		return value.Shift(-exponent).String() + "e" + suffix
-	}
-	return value.String()
 }
 
 func parseOperand(value *string) (decimal.Decimal, error) {

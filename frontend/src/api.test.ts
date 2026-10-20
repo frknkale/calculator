@@ -21,7 +21,7 @@ describe('calculate API client', () => {
     }));
   });
 
-  it.each(['0', '-1.25', '9007199254740993', '1e+25', '1e-35'])('preserves the result %s', async (result) => {
+  it.each(['0', '-1.25', '9007199254740993', '10000000000000000000000000.2', '0.' + '0'.repeat(34) + '1'])('preserves the result %s', async (result) => {
     mockResponse({ result });
     await expect(calculate({ operation: 'add', a: '0', b: '0' })).resolves.toBe(result);
   });

@@ -15,7 +15,7 @@ export default defineConfig({
     restoreMocks: true,
     coverage: {
       provider: 'v8',
-      include: ['src/App.tsx', 'src/api.ts', 'src/operations.ts'],
+      include: ['src/App.tsx', 'src/api.ts', 'src/operations.ts', 'src/formatResult.ts'],
       reporter: ['text', 'html', 'json-summary', 'lcov'],
       reportsDirectory: '../reports/frontend',
       thresholds: { statements: 90, branches: 85, functions: 90, lines: 90 },
