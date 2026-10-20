@@ -24,7 +24,7 @@ describe('calculator form', () => {
   it('validates empty fields without calling the backend', async () => {
     render(<App />);
     await userEvent.click(screen.getByRole('button', { name: 'Calculate' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('First number must be a valid, finite number.');
+    expect(screen.getByRole('alert')).toHaveTextContent('First number must be a valid decimal number.');
     expect(calculateMock).not.toHaveBeenCalled();
   });
 
@@ -32,31 +32,54 @@ describe('calculator form', () => {
     render(<App />);
     const user = await fillBinary('4', 'wrong');
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Second number must be a valid, finite number.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Second number must be a valid decimal number.');
     expect(calculateMock).not.toHaveBeenCalled();
   });
 
   it('submits with Enter and displays the exact backend result', async () => {
-    calculateMock.mockResolvedValue(15);
+    calculateMock.mockResolvedValue('15');
     render(<App />);
     const user = await fillBinary();
     await user.keyboard('{Enter}');
-    expect(calculateMock).toHaveBeenCalledWith({ operation: 'add', a: 12, b: 3 });
+    expect(calculateMock).toHaveBeenCalledWith({ operation: 'add', a: '12', b: '3' });
     expect(await screen.findByText('12 + 3 = 15')).toBeInTheDocument();
   });
 
   it('switches binary operations', async () => {
-    calculateMock.mockResolvedValue(4);
+    calculateMock.mockResolvedValue('4');
     render(<App />);
     const user = await fillBinary();
     await user.click(screen.getByRole('button', { name: 'Divide' }));
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
-    expect(calculateMock).toHaveBeenCalledWith({ operation: 'divide', a: 12, b: 3 });
+    expect(calculateMock).toHaveBeenCalledWith({ operation: 'divide', a: '12', b: '3' });
     expect(await screen.findByText('12 ÷ 3 = 4')).toBeInTheDocument();
   });
 
   it.each([
-    ['Square root', 'sqrt', '9', 3, '√(9) = 3'],
+    ['0.1', '0.2', '0.3'],
+    ['10000000000000000000000000', '0.2', '1e+25'],
+    ['9007199254740992', '1', '9007199254740993'],
+  ])('sends decimal strings and displays the result for %s plus %s', async (a, b, result) => {
+    calculateMock.mockResolvedValue(result);
+    render(<App />);
+    const user = await fillBinary(a, b);
+    await user.click(screen.getByRole('button', { name: 'Calculate' }));
+    expect(calculateMock).toHaveBeenCalledWith({ operation: 'add', a, b });
+    expect(await screen.findByText(`${a} + ${b} = ${result}`)).toBeInTheDocument();
+  });
+
+  it('displays tiny power results in scientific notation', async () => {
+    calculateMock.mockResolvedValue('1e-35');
+    render(<App />);
+    const user = await fillBinary('0.1', '35');
+    await user.click(screen.getByRole('button', { name: 'Power' }));
+    await user.click(screen.getByRole('button', { name: 'Calculate' }));
+    expect(calculateMock).toHaveBeenCalledWith({ operation: 'power', a: '0.1', b: '35' });
+    expect(await screen.findByText('0.1 xʸ 35 = 1e-35')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['Square root', 'sqrt', '9', '3', '√(9) = 3'],
   ] as const)('submits %s with only one operand', async (label, operation, input, result, expression) => {
     calculateMock.mockResolvedValue(result);
     render(<App />);
@@ -65,19 +88,19 @@ describe('calculator form', () => {
     expect(screen.queryByLabelText('Second number')).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('Number'), input);
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
-    expect(calculateMock).toHaveBeenCalledWith({ operation, a: Number(input) });
+    expect(calculateMock).toHaveBeenCalledWith({ operation, a: input });
     expect(await screen.findByText(expression)).toBeInTheDocument();
   });
 
   it('calculates y percent of x using both operands', async () => {
-    calculateMock.mockResolvedValue(50);
+    calculateMock.mockResolvedValue('50');
     render(<App />);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Percentage' }));
     await user.type(screen.getByLabelText('Number (x)'), '200');
     await user.type(screen.getByLabelText('Percent (y)'), '25');
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
-    expect(calculateMock).toHaveBeenCalledWith({ operation: 'percentage', a: 200, b: 25 });
+    expect(calculateMock).toHaveBeenCalledWith({ operation: 'percentage', a: '200', b: '25' });
     expect(await screen.findByText('25% of 200 = 50')).toBeInTheDocument();
   });
 
@@ -87,7 +110,7 @@ describe('calculator form', () => {
     await user.click(screen.getByRole('button', { name: 'Percentage' }));
     await user.type(screen.getByLabelText('Number (x)'), '200');
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('Percent (y) must be a valid, finite number.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Percent (y) must be a valid decimal number.');
     expect(calculateMock).not.toHaveBeenCalled();
   });
 
@@ -111,8 +134,8 @@ describe('calculator form', () => {
   });
 
   it('disables controls while waiting and then reenables them', async () => {
-    let resolve!: (value: number) => void;
-    calculateMock.mockReturnValue(new Promise<number>((done) => { resolve = done; }));
+    let resolve!: (value: string) => void;
+    calculateMock.mockReturnValue(new Promise<string>((done) => { resolve = done; }));
     render(<App />);
     const user = await fillBinary();
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
@@ -120,13 +143,13 @@ describe('calculator form', () => {
     expect(screen.getByLabelText('First number')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Reset' })).toBeDisabled();
     expect(screen.getByRole('status')).toHaveTextContent('Calculating…');
-    await act(async () => resolve(15));
+    await act(async () => resolve('15'));
     await waitFor(() => expect(screen.getByRole('button', { name: 'Calculate' })).toBeEnabled());
     expect(screen.getByRole('status')).toHaveTextContent('12 + 3 = 15');
   });
 
   it('clears stale answers when an operand changes', async () => {
-    calculateMock.mockResolvedValue(15);
+    calculateMock.mockResolvedValue('15');
     render(<App />);
     const user = await fillBinary();
     await user.click(screen.getByRole('button', { name: 'Calculate' }));
@@ -136,7 +159,7 @@ describe('calculator form', () => {
   });
 
   it('resets values, operation, and result', async () => {
-    calculateMock.mockResolvedValue(4);
+    calculateMock.mockResolvedValue('4');
     render(<App />);
     const user = await fillBinary();
     await user.click(screen.getByRole('button', { name: 'Divide' }));

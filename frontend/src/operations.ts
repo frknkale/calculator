@@ -10,12 +10,17 @@ export const operations = [
 
 export type Operation = (typeof operations)[number]['value'];
 
-export function parseOperand(value: string, label: string): number {
+export function isDecimal(value: string): boolean {
+  return value.trim() === value && /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value);
+}
+
+export function parseOperand(value: string, label: string): string {
   const trimmed = value.trim();
-  // Accept finite decimal input, including scientific notation.
-  const decimal = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i;
-  if (!decimal.test(trimmed) || !Number.isFinite(Number(trimmed))) {
-    throw new Error(`${label} must be a valid, finite number.`);
+  if (!isDecimal(trimmed)) {
+    throw new Error(`${label} must be a valid decimal number.`);
   }
-  return Number(trimmed);
+  if (trimmed.length > 128) {
+    throw new Error(`${label} must be at most 128 characters.`);
+  }
+  return trimmed;
 }

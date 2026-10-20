@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { calculate } from './api';
 import { operations, parseOperand } from './operations';
 
-type Answer = { expression: string; value: number };
+type Answer = { expression: string; value: string };
 
 export default function App() {
   const [operation, setOperation] = useState<(typeof operations)[number]>(operations[0]);
@@ -83,7 +83,7 @@ export default function App() {
 
         <div className={`result ${answer ? 'has-answer' : ''}`} role="status" aria-live="polite" aria-atomic="true">
           <div className="result-top"><span>Result</span><span aria-hidden="true">=</span></div>
-          <p className="result-value">{pending ? '…' : answer ? String(answer.value) : '—'}</p>
+          <p className="result-value">{pending ? '…' : answer ? answer.value : '—'}</p>
           <p className="result-caption">{answer ? `${answer.expression} = ${answer.value}` : pending ? 'Calculating…' : ''}</p>
         </div>
         <p className="card-footer">Press Enter to calculate.</p>

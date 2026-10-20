@@ -12,9 +12,9 @@ import (
 )
 
 type request struct {
-	Operation string   `json:"operation"`
-	A         *float64 `json:"a"`
-	B         *float64 `json:"b,omitempty"`
+	Operation string  `json:"operation"`
+	A         *string `json:"a"`
+	B         *string `json:"b,omitempty"`
 }
 
 type apiError struct {
@@ -72,7 +72,7 @@ func calculate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_calculation", err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]float64{"result": result})
+	writeJSON(w, http.StatusOK, map[string]string{"result": result})
 }
 
 func invalidJSON(w http.ResponseWriter, err error) {
@@ -81,7 +81,7 @@ func invalidJSON(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusRequestEntityTooLarge, "body_too_large", "Request body must not exceed 4096 bytes.")
 		return
 	}
-	writeError(w, http.StatusBadRequest, "invalid_json", "Send one JSON object with operation and numeric a/b fields only.")
+	writeError(w, http.StatusBadRequest, "invalid_json", "Send one JSON object with operation and decimal string a/b fields only.")
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string) {
@@ -94,6 +94,6 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(status)
-	// Response values contain only strings and finite numbers.
+	// Response values contain only JSON-compatible strings and structs.
 	_ = json.NewEncoder(w).Encode(value)
 }

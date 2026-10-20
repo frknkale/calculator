@@ -1,9 +1,9 @@
-import type { Operation } from './operations';
+import { isDecimal, type Operation } from './operations';
 
 export interface CalculationRequest {
   operation: Operation;
-  a: number;
-  b?: number;
+  a: string;
+  b?: string;
 }
 
 // Treat network data as unknown until it has been checked at runtime.
@@ -14,7 +14,7 @@ function errorMessage(data: unknown): string | undefined {
   if (typeof error.message === 'string') return error.message;
 }
 
-export async function calculate(input: CalculationRequest): Promise<number> {
+export async function calculate(input: CalculationRequest): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10_000);
   try {
@@ -34,7 +34,7 @@ export async function calculate(input: CalculationRequest): Promise<number> {
       throw new Error(errorMessage(data) ?? 'The calculation failed. Please try again.');
     }
     if (typeof data !== 'object' || data === null || !('result' in data) ||
-        typeof data.result !== 'number' || !Number.isFinite(data.result)) {
+        typeof data.result !== 'string' || !isDecimal(data.result)) {
       throw new Error('The server returned an invalid result. Please try again.');
     }
     return data.result;
