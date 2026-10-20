@@ -140,7 +140,8 @@ package calculator
 
 import (
         "errors"
-        "regexp"
+        "strconv"
+        "strings"
 
         "github.com/shopspring/decimal"
 )
@@ -148,46 +149,52 @@ import (
 const decimalPlaces = 16
 
 var (
-        ErrOperation      = errors.New("Choose a supported operation.")
-        ErrOperand        = errors.New("Provide the required decimal strings, up to 128 characters with decimal exponents between -1000 and 1000.")
-        ErrDivisionByZero = errors.New("Cannot divide by zero.")
-        ErrNegativeRoot   = errors.New("Cannot take the square root of a negative number.")
-        ErrPowerLimit     = errors.New("Power exponent must be between -1000 and 1000.")
-        ErrResult         = errors.New("The result is not a supported real number.")
-        decimalSyntax     = regexp.MustCompile(`^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$`)
-        maxPower          = decimal.NewFromInt(1000)
+        ErrOperation         = errors.New("Choose a supported operation.")
+        ErrMissingOperand    = errors.New("Enter all required numbers.")
+        ErrUnexpectedOperand = errors.New("Square root accepts only one number.")
+        ErrOperand           = errors.New("Enter a valid number.")
+        ErrOperandLength     = errors.New("Each number must be at most 128 characters.")
+        ErrNumberTooLarge    = errors.New("Number must be less than 10^1001.")
+        ErrNumberTooLow      = errors.New("Number must be greater than -10^1001.")
+        ErrPositiveTooSmall  = errors.New("Positive numbers must be at least 10^-1000.")
+        ErrNegativeTooSmall  = errors.New("Negative numbers must be at most -10^-1000.")
+        ErrDivisionByZero    = errors.New("Cannot divide by zero.")
+        ErrNegativeRoot      = errors.New("Cannot take the square root of a negative number.")
+        ErrPowerLimit        = errors.New("Power exponent must be between -1000 and 1000.")
+        ErrResult            = errors.New("The result is not a supported real number.")
+        maxPower             = decimal.NewFromInt(1000)
 )
 
 // Calculate accepts and returns decimal strings to preserve their digits.
 // Percentage means b percent of a. Power defines 0^0 as 1.
-func Calculate(operation string, a, b *string) (string, error) <span class="cov9" title="89">{
+func Calculate(operation string, a, b *string) (string, error) <span class="cov9" title="113">{
         switch operation </span>{
-        case "add", "subtract", "multiply", "divide", "power", "percentage":<span class="cov8" title="69">
+        case "add", "subtract", "multiply", "divide", "power", "percentage":<span class="cov8" title="87">
                 if b == nil </span><span class="cov2" title="2">{
-                        return "", ErrOperand
+                        return "", ErrMissingOperand
                 }</span>
-        case "sqrt":<span class="cov6" title="18">
+        case "sqrt":<span class="cov6" title="24">
                 if b != nil </span><span class="cov1" title="1">{
-                        return "", ErrOperand
+                        return "", ErrUnexpectedOperand
                 }</span>
         default:<span class="cov2" title="2">
                 return "", ErrOperation</span>
         }
-        <span class="cov8" title="84">x, err := parseOperand(a)
-        if err != nil </span><span class="cov5" title="10">{
+        <span class="cov9" title="108">x, err := parseOperand(a)
+        if err != nil </span><span class="cov6" title="25">{
                 return "", err
         }</span>
-        <span class="cov8" title="74">var y decimal.Decimal
-        if b != nil </span><span class="cov8" title="64">{
+        <span class="cov8" title="83">var y decimal.Decimal
+        if b != nil </span><span class="cov8" title="73">{
                 y, err = parseOperand(b)
                 if err != nil </span><span class="cov1" title="1">{
                         return "", err
                 }</span>
         }
 
-        <span class="cov8" title="73">var result decimal.Decimal
+        <span class="cov8" title="82">var result decimal.Decimal
         switch operation </span>{
-        case "add":<span class="cov5" title="10">
+        case "add":<span class="cov6" title="19">
                 result = x.Add(y)</span>
         case "subtract":<span class="cov2" title="2">
                 result = x.Sub(y)</span>
@@ -209,7 +216,7 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov9
                 }</span> else<span class="cov6" title="20"> {
                         result, err = x.PowWithPrecision(y, decimalPlaces)
                 }</span>
-        case "sqrt":<span class="cov5" title="10">
+        case "sqrt":<span class="cov4" title="10">
                 if x.IsNegative() </span><span class="cov1" title="1">{
                         return "", ErrNegativeRoot
                 }</span>
@@ -219,26 +226,54 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov9
         case "percentage":<span class="cov4" title="9">
                 result = x.Mul(y.Shift(-2))</span>
         }
-        <span class="cov8" title="67">if err != nil </span><span class="cov2" title="2">{
+        <span class="cov8" title="76">if err != nil </span><span class="cov2" title="2">{
                 return "", ErrResult
         }</span>
-        <span class="cov8" title="65">return result.String(), nil</span>
+        <span class="cov8" title="74">return result.String(), nil</span>
 }
 
 // order is the exponent in a value's normalized scientific notation.
-func order(value decimal.Decimal) int64 <span class="cov6" title="24">{
+func order(value decimal.Decimal) int64 <span class="cov9" title="167">{
         return int64(value.NumDigits()) + int64(value.Exponent()) - 1
 }</span>
 
-func parseOperand(value *string) (decimal.Decimal, error) <span class="cov10" title="148">{
-        if value == nil || len(*value) &gt; 128 || !decimalSyntax.MatchString(*value) </span><span class="cov4" title="8">{
+func parseOperand(value *string) (decimal.Decimal, error) <span class="cov10" title="181">{
+        if value == nil </span><span class="cov1" title="1">{
+                return decimal.Decimal{}, ErrMissingOperand
+        }</span>
+        <span class="cov9" title="180">if len(*value) &gt; 128 </span><span class="cov1" title="1">{
+                return decimal.Decimal{}, ErrOperandLength
+        }</span>
+        <span class="cov9" title="179">coefficient, exponentText, scientific := strings.Cut(strings.ToLower(*value), "e")
+        number, err := decimal.NewFromString(coefficient)
+        if err != nil </span><span class="cov4" title="7">{
                 return decimal.Decimal{}, ErrOperand
         }</span>
-        <span class="cov9" title="140">number, err := decimal.NewFromString(*value)
-        if err != nil || number.Exponent() &lt; -1000 || number.Exponent() &gt; 1000 </span><span class="cov2" title="3">{
-                return decimal.Decimal{}, ErrOperand
+        <span class="cov9" title="172">var exponent int64
+        if scientific </span><span class="cov7" title="47">{
+                exponent, err = strconv.ParseInt(exponentText, 10, 64)
+                if err != nil &amp;&amp; !errors.Is(err, strconv.ErrRange) </span><span class="cov3" title="4">{
+                        return decimal.Decimal{}, ErrOperand
+                }</span>
+        }
+        <span class="cov9" title="168">if number.IsZero() </span><span class="cov6" title="25">{
+                return decimal.Zero, nil
         }</span>
-        <span class="cov9" title="137">return number, nil</span>
+        // Compare the value's size without expanding its scientific notation.
+        <span class="cov9" title="143">magnitude := order(number)
+        if exponent &gt; 1000-magnitude </span><span class="cov4" title="8">{
+                if number.IsNegative() </span><span class="cov2" title="3">{
+                        return decimal.Decimal{}, ErrNumberTooLow
+                }</span>
+                <span class="cov3" title="5">return decimal.Decimal{}, ErrNumberTooLarge</span>
+        }
+        <span class="cov9" title="135">if exponent &lt; -1000-magnitude </span><span class="cov3" title="5">{
+                if number.IsNegative() </span><span class="cov2" title="2">{
+                        return decimal.Decimal{}, ErrNegativeTooSmall
+                }</span>
+                <span class="cov2" title="3">return decimal.Decimal{}, ErrPositiveTooSmall</span>
+        }
+        <span class="cov9" title="130">return number.Shift(int32(exponent)), nil</span>
 }
 </pre>
 
@@ -267,7 +302,7 @@ type apiError struct {
 }
 
 // NewHandler returns the API routes and optional frontend handler.
-func NewHandler(frontend http.Handler) http.Handler <span class="cov2" title="2">{
+func NewHandler(frontend http.Handler) http.Handler <span class="cov3" title="3">{
         mux := http.NewServeMux()
         mux.HandleFunc("/api/calculate", calculate)
         mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) </span><span class="cov2" title="2">{
@@ -278,63 +313,63 @@ func NewHandler(frontend http.Handler) http.Handler <span class="cov2" title="2"
                 }</span>
                 <span class="cov1" title="1">writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})</span>
         })
-        <span class="cov2" title="2">mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) </span><span class="cov1" title="1">{
+        <span class="cov3" title="3">mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) </span><span class="cov1" title="1">{
                 writeError(w, http.StatusNotFound, "not_found", "API endpoint not found.")
         }</span>)
-        <span class="cov2" title="2">if frontend != nil </span><span class="cov1" title="1">{
+        <span class="cov3" title="3">if frontend != nil </span><span class="cov1" title="1">{
                 mux.Handle("/", frontend)
         }</span>
-        <span class="cov2" title="2">return mux</span>
+        <span class="cov3" title="3">return mux</span>
 }
 
-func calculate(w http.ResponseWriter, r *http.Request) <span class="cov9" title="54">{
+func calculate(w http.ResponseWriter, r *http.Request) <span class="cov9" title="67">{
         if r.Method != http.MethodPost </span><span class="cov2" title="2">{
                 w.Header().Set("Allow", http.MethodPost)
                 writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Use POST for this endpoint.")
                 return
         }</span>
-        <span class="cov9" title="52">mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+        <span class="cov9" title="65">mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
         if err != nil || mediaType != "application/json" </span><span class="cov2" title="2">{
                 writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Send Content-Type: application/json.")
                 return
         }</span>
-        <span class="cov9" title="50">r.Body = http.MaxBytesReader(w, r.Body, 4096)
+        <span class="cov9" title="63">r.Body = http.MaxBytesReader(w, r.Body, 4096)
         decoder := json.NewDecoder(r.Body)
         decoder.DisallowUnknownFields()
         var input request
-        if err := decoder.Decode(&amp;input); err != nil </span><span class="cov5" title="9">{
+        if err := decoder.Decode(&amp;input); err != nil </span><span class="cov5" title="10">{
                 invalidJSON(w, err)
                 return
         }</span>
         // A second value (or malformed trailing data) must not be silently ignored.
-        <span class="cov9" title="41">if err := decoder.Decode(&amp;struct{}{}); err != io.EOF </span><span class="cov3" title="3">{
+        <span class="cov9" title="53">if err := decoder.Decode(&amp;struct{}{}); err != io.EOF </span><span class="cov3" title="3">{
                 invalidJSON(w, err)
                 return
         }</span>
-        <span class="cov9" title="38">result, err := calculator.Calculate(input.Operation, input.A, input.B)
-        if err != nil </span><span class="cov7" title="17">{
+        <span class="cov9" title="50">result, err := calculator.Calculate(input.Operation, input.A, input.B)
+        if err != nil </span><span class="cov8" title="29">{
                 writeError(w, http.StatusBadRequest, "invalid_calculation", err.Error())
                 return
         }</span>
         <span class="cov7" title="21">writeJSON(w, http.StatusOK, map[string]string{"result": result})</span>
 }
 
-func invalidJSON(w http.ResponseWriter, err error) <span class="cov6" title="12">{
+func invalidJSON(w http.ResponseWriter, err error) <span class="cov6" title="13">{
         var tooLarge *http.MaxBytesError
         if errors.As(err, &amp;tooLarge) </span><span class="cov2" title="2">{
                 writeError(w, http.StatusRequestEntityTooLarge, "body_too_large", "Request body must not exceed 4096 bytes.")
                 return
         }</span>
-        <span class="cov6" title="10">writeError(w, http.StatusBadRequest, "invalid_json", "Send one JSON object with operation and decimal string a/b fields only.")</span>
+        <span class="cov6" title="11">writeError(w, http.StatusBadRequest, "invalid_json", "Send one JSON object with operation and decimal string a/b fields only.")</span>
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) <span class="cov8" title="35">{
+func writeError(w http.ResponseWriter, status int, code, message string) <span class="cov9" title="48">{
         writeJSON(w, status, struct {
                 Error apiError `json:"error"`
         }{Error: apiError{Code: code, Message: message}})
 }</span>
 
-func writeJSON(w http.ResponseWriter, status int, value any) <span class="cov10" title="57">{
+func writeJSON(w http.ResponseWriter, status int, value any) <span class="cov10" title="70">{
         w.Header().Set("Content-Type", "application/json")
         w.Header().Set("X-Content-Type-Options", "nosniff")
         w.WriteHeader(status)

@@ -3,7 +3,8 @@ package calculator
 
 import (
 	"errors"
-	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/shopspring/decimal"
 )
@@ -11,14 +12,20 @@ import (
 const decimalPlaces = 16
 
 var (
-	ErrOperation      = errors.New("Choose a supported operation.")
-	ErrOperand        = errors.New("Provide the required decimal strings, up to 128 characters with decimal exponents between -1000 and 1000.")
-	ErrDivisionByZero = errors.New("Cannot divide by zero.")
-	ErrNegativeRoot   = errors.New("Cannot take the square root of a negative number.")
-	ErrPowerLimit     = errors.New("Power exponent must be between -1000 and 1000.")
-	ErrResult         = errors.New("The result is not a supported real number.")
-	decimalSyntax     = regexp.MustCompile(`^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$`)
-	maxPower          = decimal.NewFromInt(1000)
+	ErrOperation         = errors.New("Choose a supported operation.")
+	ErrMissingOperand    = errors.New("Enter all required numbers.")
+	ErrUnexpectedOperand = errors.New("Square root accepts only one number.")
+	ErrOperand           = errors.New("Enter a valid number.")
+	ErrOperandLength     = errors.New("Each number must be at most 128 characters.")
+	ErrNumberTooLarge    = errors.New("Number must be less than 10^1001.")
+	ErrNumberTooLow      = errors.New("Number must be greater than -10^1001.")
+	ErrPositiveTooSmall  = errors.New("Positive numbers must be at least 10^-1000.")
+	ErrNegativeTooSmall  = errors.New("Negative numbers must be at most -10^-1000.")
+	ErrDivisionByZero    = errors.New("Cannot divide by zero.")
+	ErrNegativeRoot      = errors.New("Cannot take the square root of a negative number.")
+	ErrPowerLimit        = errors.New("Power exponent must be between -1000 and 1000.")
+	ErrResult            = errors.New("The result is not a supported real number.")
+	maxPower             = decimal.NewFromInt(1000)
 )
 
 // Calculate accepts and returns decimal strings to preserve their digits.
@@ -27,11 +34,11 @@ func Calculate(operation string, a, b *string) (string, error) {
 	switch operation {
 	case "add", "subtract", "multiply", "divide", "power", "percentage":
 		if b == nil {
-			return "", ErrOperand
+			return "", ErrMissingOperand
 		}
 	case "sqrt":
 		if b != nil {
-			return "", ErrOperand
+			return "", ErrUnexpectedOperand
 		}
 	default:
 		return "", ErrOperation
@@ -94,12 +101,40 @@ func order(value decimal.Decimal) int64 {
 }
 
 func parseOperand(value *string) (decimal.Decimal, error) {
-	if value == nil || len(*value) > 128 || !decimalSyntax.MatchString(*value) {
+	if value == nil {
+		return decimal.Decimal{}, ErrMissingOperand
+	}
+	if len(*value) > 128 {
+		return decimal.Decimal{}, ErrOperandLength
+	}
+	coefficient, exponentText, scientific := strings.Cut(strings.ToLower(*value), "e")
+	number, err := decimal.NewFromString(coefficient)
+	if err != nil {
 		return decimal.Decimal{}, ErrOperand
 	}
-	number, err := decimal.NewFromString(*value)
-	if err != nil || number.Exponent() < -1000 || number.Exponent() > 1000 {
-		return decimal.Decimal{}, ErrOperand
+	var exponent int64
+	if scientific {
+		exponent, err = strconv.ParseInt(exponentText, 10, 64)
+		if err != nil && !errors.Is(err, strconv.ErrRange) {
+			return decimal.Decimal{}, ErrOperand
+		}
 	}
-	return number, nil
+	if number.IsZero() {
+		return decimal.Zero, nil
+	}
+	// Compare the value's size without expanding its scientific notation.
+	magnitude := order(number)
+	if exponent > 1000-magnitude {
+		if number.IsNegative() {
+			return decimal.Decimal{}, ErrNumberTooLow
+		}
+		return decimal.Decimal{}, ErrNumberTooLarge
+	}
+	if exponent < -1000-magnitude {
+		if number.IsNegative() {
+			return decimal.Decimal{}, ErrNegativeTooSmall
+		}
+		return decimal.Decimal{}, ErrPositiveTooSmall
+	}
+	return number.Shift(int32(exponent)), nil
 }

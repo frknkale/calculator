@@ -95,6 +95,44 @@ func TestCalculateEndpoint(t *testing.T) {
 	}
 }
 
+func TestInputErrorMessages(t *testing.T) {
+	tests := []struct {
+		name, body, message string
+	}{
+		{"missing first number", `{"operation":"add","b":"2"}`, "Enter all required numbers."},
+		{"missing second number", `{"operation":"add","a":"2"}`, "Enter all required numbers."},
+		{"extra number", `{"operation":"sqrt","a":"4","b":"2"}`, "Square root accepts only one number."},
+		{"invalid number", `{"operation":"sqrt","a":"hello"}`, "Enter a valid number."},
+		{"long number", `{"operation":"sqrt","a":"` + strings.Repeat("9", 129) + `"}`, "Each number must be at most 128 characters."},
+		{"high exponent", `{"operation":"sqrt","a":"1e1001"}`, "Number must be less than 10^1001."},
+		{"low exponent", `{"operation":"sqrt","a":"1e-1001"}`, "Positive numbers must be at least 10^-1000."},
+		{"large exponent in addition", `{"operation":"add","a":"56745654656e774567567","b":"1"}`, "Number must be less than 10^1001."},
+		{"exponent 5600 in addition", `{"operation":"add","a":"100000e5600","b":"1"}`, "Number must be less than 10^1001."},
+		{"overflowing exponent", `{"operation":"add","a":"1e99999999999999999999","b":"1"}`, "Number must be less than 10^1001."},
+		{"negative large number", `{"operation":"add","a":"-1e1001","b":"0"}`, "Number must be greater than -10^1001."},
+		{"negative tiny number", `{"operation":"add","a":"-1e-1001","b":"0"}`, "Negative numbers must be at most -10^-1000."},
+		{"unquoted number", `{"operation":"sqrt","a":4}`, "Send one JSON object with operation and decimal string a/b fields only."},
+	}
+	handler := NewHandler(nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/calculate", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, req)
+			var body struct {
+				Error apiError `json:"error"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusBadRequest || body.Error.Message != tt.message {
+				t.Errorf("status/message = %d/%q, want 400/%q", response.Code, body.Error.Message, tt.message)
+			}
+		})
+	}
+}
+
 func TestRouting(t *testing.T) {
 	frontend := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte("frontend"))
