@@ -145,7 +145,7 @@ import (
         "github.com/shopspring/decimal"
 )
 
-const significantDigits int32 = 16
+const decimalPlaces = 16
 
 var (
         ErrOperation      = errors.New("Choose a supported operation.")
@@ -160,34 +160,34 @@ var (
 
 // Calculate accepts and returns decimal strings to preserve their digits.
 // Percentage means b percent of a. Power defines 0^0 as 1.
-func Calculate(operation string, a, b *string) (string, error) <span class="cov9" title="95">{
+func Calculate(operation string, a, b *string) (string, error) <span class="cov9" title="89">{
         switch operation </span>{
-        case "add", "subtract", "multiply", "divide", "power", "percentage":<span class="cov8" title="77">
+        case "add", "subtract", "multiply", "divide", "power", "percentage":<span class="cov8" title="69">
                 if b == nil </span><span class="cov2" title="2">{
                         return "", ErrOperand
                 }</span>
-        case "sqrt":<span class="cov5" title="16">
+        case "sqrt":<span class="cov6" title="18">
                 if b != nil </span><span class="cov1" title="1">{
                         return "", ErrOperand
                 }</span>
         default:<span class="cov2" title="2">
                 return "", ErrOperation</span>
         }
-        <span class="cov8" title="90">x, err := parseOperand(a)
+        <span class="cov8" title="84">x, err := parseOperand(a)
         if err != nil </span><span class="cov5" title="10">{
                 return "", err
         }</span>
-        <span class="cov8" title="80">var y decimal.Decimal
-        if b != nil </span><span class="cov8" title="72">{
+        <span class="cov8" title="74">var y decimal.Decimal
+        if b != nil </span><span class="cov8" title="64">{
                 y, err = parseOperand(b)
                 if err != nil </span><span class="cov1" title="1">{
                         return "", err
                 }</span>
         }
 
-        <span class="cov8" title="79">var result decimal.Decimal
+        <span class="cov8" title="73">var result decimal.Decimal
         switch operation </span>{
-        case "add":<span class="cov6" title="18">
+        case "add":<span class="cov5" title="10">
                 result = x.Add(y)</span>
         case "subtract":<span class="cov2" title="2">
                 result = x.Sub(y)</span>
@@ -197,11 +197,9 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov9
                 if y.IsZero() </span><span class="cov2" title="2">{
                         return "", ErrDivisionByZero
                 }</span>
-                <span class="cov5" title="12">exponent := order(x) - order(y)
-                if x.Abs().LessThan(y.Abs().Shift(exponent)) </span><span class="cov4" title="6">{
-                        exponent--
-                }</span>
-                <span class="cov5" title="12">result = x.DivRound(y, significantDigits-1-exponent)</span>
+                // Use extra decimal places to preserve small quotients.
+                <span class="cov5" title="12">places := int64(decimalPlaces) + max(0, order(y)-order(x))
+                result = x.DivRound(y, int32(places))</span>
         case "power":<span class="cov6" title="24">
                 if y.Abs().GreaterThan(maxPower) </span><span class="cov2" title="3">{
                         return "", ErrPowerLimit
@@ -209,48 +207,38 @@ func Calculate(operation string, a, b *string) (string, error) <span class="cov9
                 <span class="cov6" title="21">if x.IsZero() &amp;&amp; y.IsZero() </span><span class="cov1" title="1">{
                         result = decimal.NewFromInt(1)
                 }</span> else<span class="cov6" title="20"> {
-                        result, err = x.PowWithPrecision(y, significantDigits)
-                        // Estimate the result before choosing decimal places.
-                        if err == nil &amp;&amp; !result.IsZero() &amp;&amp; !(y.IsInteger() &amp;&amp; !y.IsNegative()) &amp;&amp; order(result) &gt;= -significantDigits </span><span class="cov4" title="7">{
-                                places := significantDigits - 1 - order(result)
-                                result, err = x.PowWithPrecision(y, significantDigits-1-order(result))
-                                if err == nil &amp;&amp; significantDigits-1-order(result) &gt; places </span><span class="cov1" title="1">{
-                                        result, err = x.PowWithPrecision(y, significantDigits-1-order(result))
-                                }</span>
-                        }
-                }
-        case "sqrt":<span class="cov4" title="8">
+                        result, err = x.PowWithPrecision(y, decimalPlaces)
+                }</span>
+        case "sqrt":<span class="cov5" title="10">
                 if x.IsNegative() </span><span class="cov1" title="1">{
                         return "", ErrNegativeRoot
                 }</span>
-                <span class="cov4" title="7">exponent := order(x) / 2
-                if order(x) &lt; 0 &amp;&amp; order(x)%2 != 0 </span><span class="cov1" title="1">{
-                        exponent--
-                }</span>
-                <span class="cov4" title="7">result, err = x.SqrtRound(significantDigits - 1 - exponent)</span>
+                // Use extra decimal places to preserve small square roots.
+                <span class="cov4" title="9">places := decimalPlaces + max(0, -x.Exponent()/2)
+                result, err = x.SqrtRound(places)</span>
         case "percentage":<span class="cov4" title="9">
                 result = x.Mul(y.Shift(-2))</span>
         }
-        <span class="cov8" title="73">if err != nil </span><span class="cov2" title="2">{
+        <span class="cov8" title="67">if err != nil </span><span class="cov2" title="2">{
                 return "", ErrResult
         }</span>
-        <span class="cov8" title="71">return result.String(), nil</span>
+        <span class="cov8" title="65">return result.String(), nil</span>
 }
 
 // order is the exponent in a value's normalized scientific notation.
-func order(value decimal.Decimal) int32 <span class="cov8" title="72">{
-        return int32(value.NumDigits()) + value.Exponent() - 1
+func order(value decimal.Decimal) int64 <span class="cov6" title="24">{
+        return int64(value.NumDigits()) + int64(value.Exponent()) - 1
 }</span>
 
-func parseOperand(value *string) (decimal.Decimal, error) <span class="cov10" title="162">{
+func parseOperand(value *string) (decimal.Decimal, error) <span class="cov10" title="148">{
         if value == nil || len(*value) &gt; 128 || !decimalSyntax.MatchString(*value) </span><span class="cov4" title="8">{
                 return decimal.Decimal{}, ErrOperand
         }</span>
-        <span class="cov9" title="154">number, err := decimal.NewFromString(*value)
+        <span class="cov9" title="140">number, err := decimal.NewFromString(*value)
         if err != nil || number.Exponent() &lt; -1000 || number.Exponent() &gt; 1000 </span><span class="cov2" title="3">{
                 return decimal.Decimal{}, ErrOperand
         }</span>
-        <span class="cov9" title="151">return number, nil</span>
+        <span class="cov9" title="137">return number, nil</span>
 }
 </pre>
 
@@ -299,18 +287,18 @@ func NewHandler(frontend http.Handler) http.Handler <span class="cov2" title="2"
         <span class="cov2" title="2">return mux</span>
 }
 
-func calculate(w http.ResponseWriter, r *http.Request) <span class="cov9" title="53">{
+func calculate(w http.ResponseWriter, r *http.Request) <span class="cov9" title="54">{
         if r.Method != http.MethodPost </span><span class="cov2" title="2">{
                 w.Header().Set("Allow", http.MethodPost)
                 writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Use POST for this endpoint.")
                 return
         }</span>
-        <span class="cov9" title="51">mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+        <span class="cov9" title="52">mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
         if err != nil || mediaType != "application/json" </span><span class="cov2" title="2">{
                 writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Send Content-Type: application/json.")
                 return
         }</span>
-        <span class="cov9" title="49">r.Body = http.MaxBytesReader(w, r.Body, 4096)
+        <span class="cov9" title="50">r.Body = http.MaxBytesReader(w, r.Body, 4096)
         decoder := json.NewDecoder(r.Body)
         decoder.DisallowUnknownFields()
         var input request
@@ -319,16 +307,16 @@ func calculate(w http.ResponseWriter, r *http.Request) <span class="cov9" title=
                 return
         }</span>
         // A second value (or malformed trailing data) must not be silently ignored.
-        <span class="cov9" title="40">if err := decoder.Decode(&amp;struct{}{}); err != io.EOF </span><span class="cov3" title="3">{
+        <span class="cov9" title="41">if err := decoder.Decode(&amp;struct{}{}); err != io.EOF </span><span class="cov3" title="3">{
                 invalidJSON(w, err)
                 return
         }</span>
-        <span class="cov9" title="37">result, err := calculator.Calculate(input.Operation, input.A, input.B)
+        <span class="cov9" title="38">result, err := calculator.Calculate(input.Operation, input.A, input.B)
         if err != nil </span><span class="cov7" title="17">{
                 writeError(w, http.StatusBadRequest, "invalid_calculation", err.Error())
                 return
         }</span>
-        <span class="cov7" title="20">writeJSON(w, http.StatusOK, map[string]string{"result": result})</span>
+        <span class="cov7" title="21">writeJSON(w, http.StatusOK, map[string]string{"result": result})</span>
 }
 
 func invalidJSON(w http.ResponseWriter, err error) <span class="cov6" title="12">{
@@ -346,7 +334,7 @@ func writeError(w http.ResponseWriter, status int, code, message string) <span c
         }{Error: apiError{Code: code, Message: message}})
 }</span>
 
-func writeJSON(w http.ResponseWriter, status int, value any) <span class="cov10" title="56">{
+func writeJSON(w http.ResponseWriter, status int, value any) <span class="cov10" title="57">{
         w.Header().Set("Content-Type", "application/json")
         w.Header().Set("X-Content-Type-Options", "nosniff")
         w.WriteHeader(status)

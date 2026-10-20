@@ -8,7 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const significantDigits int32 = 16
+const decimalPlaces = 16
 
 var (
 	ErrOperation      = errors.New("Choose a supported operation.")
@@ -60,11 +60,9 @@ func Calculate(operation string, a, b *string) (string, error) {
 		if y.IsZero() {
 			return "", ErrDivisionByZero
 		}
-		exponent := order(x) - order(y)
-		if x.Abs().LessThan(y.Abs().Shift(exponent)) {
-			exponent--
-		}
-		result = x.DivRound(y, significantDigits-1-exponent)
+		// Use extra decimal places to preserve small quotients.
+		places := int64(decimalPlaces) + max(0, order(y)-order(x))
+		result = x.DivRound(y, int32(places))
 	case "power":
 		if y.Abs().GreaterThan(maxPower) {
 			return "", ErrPowerLimit
@@ -72,25 +70,15 @@ func Calculate(operation string, a, b *string) (string, error) {
 		if x.IsZero() && y.IsZero() {
 			result = decimal.NewFromInt(1)
 		} else {
-			result, err = x.PowWithPrecision(y, significantDigits)
-			// Estimate the result before choosing decimal places.
-			if err == nil && !result.IsZero() && !(y.IsInteger() && !y.IsNegative()) && order(result) >= -significantDigits {
-				places := significantDigits - 1 - order(result)
-				result, err = x.PowWithPrecision(y, significantDigits-1-order(result))
-				if err == nil && significantDigits-1-order(result) > places {
-					result, err = x.PowWithPrecision(y, significantDigits-1-order(result))
-				}
-			}
+			result, err = x.PowWithPrecision(y, decimalPlaces)
 		}
 	case "sqrt":
 		if x.IsNegative() {
 			return "", ErrNegativeRoot
 		}
-		exponent := order(x) / 2
-		if order(x) < 0 && order(x)%2 != 0 {
-			exponent--
-		}
-		result, err = x.SqrtRound(significantDigits - 1 - exponent)
+		// Use extra decimal places to preserve small square roots.
+		places := decimalPlaces + max(0, -x.Exponent()/2)
+		result, err = x.SqrtRound(places)
 	case "percentage":
 		result = x.Mul(y.Shift(-2))
 	}
@@ -101,8 +89,8 @@ func Calculate(operation string, a, b *string) (string, error) {
 }
 
 // order is the exponent in a value's normalized scientific notation.
-func order(value decimal.Decimal) int32 {
-	return int32(value.NumDigits()) + value.Exponent() - 1
+func order(value decimal.Decimal) int64 {
+	return int64(value.NumDigits()) + int64(value.Exponent()) - 1
 }
 
 func parseOperand(value *string) (decimal.Decimal, error) {
