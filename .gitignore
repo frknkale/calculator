@@ -1,6 +1,9 @@
 frontend/node_modules/
 .pnpm-store/
 frontend/dist/
+reports/frontend/*
+!reports/frontend/coverage-summary.json
+!reports/frontend/lcov.info
 .DS_Store
 *.log
 .env

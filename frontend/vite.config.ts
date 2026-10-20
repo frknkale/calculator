@@ -13,5 +13,12 @@ export default defineConfig({
     setupFiles: ['./src/test-setup.ts'],
     clearMocks: true,
     restoreMocks: true,
+    coverage: {
+      provider: 'v8',
+      include: ['src/App.tsx', 'src/api.ts', 'src/operations.ts'],
+      reporter: ['text', 'html', 'json-summary', 'lcov'],
+      reportsDirectory: '../reports/frontend',
+      thresholds: { statements: 90, branches: 85, functions: 90, lines: 90 },
+    },
   },
 });

@@ -1,0 +1,333 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>server: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+
+				<option value="file0">calculator/backend/cmd/server/main.go (0.0%)</option>
+
+				<option value="file1">calculator/backend/internal/calculator/calculator.go (100.0%)</option>
+
+				<option value="file2">calculator/backend/internal/httpapi/handler.go (100.0%)</option>
+
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+
+			</div>
+		</div>
+		<div id="content">
+
+		<pre class="file" id="file0" style="display: none">package main
+
+import (
+        "context"
+        "errors"
+        "log"
+        "net/http"
+        "os"
+        "os/signal"
+        "syscall"
+        "time"
+
+        "calculator/backend/internal/httpapi"
+)
+
+func main() <span class="cov0" title="0">{
+        addr := os.Getenv("ADDR")
+        if addr == "" </span><span class="cov0" title="0">{
+                addr = ":8080"
+        }</span>
+        <span class="cov0" title="0">var frontend http.Handler
+        if directory := os.Getenv("STATIC_DIR"); directory != "" </span><span class="cov0" title="0">{
+                frontend = http.FileServer(http.Dir(directory))
+        }</span>
+        <span class="cov0" title="0">server := &amp;http.Server{
+                Addr:              addr,
+                Handler:           httpapi.NewHandler(frontend),
+                ReadHeaderTimeout: 5 * time.Second,
+                ReadTimeout:       10 * time.Second,
+                WriteTimeout:      10 * time.Second,
+                IdleTimeout:       60 * time.Second,
+        }
+        ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+        defer stop()
+        shutdownDone := make(chan struct{})
+        go func() </span><span class="cov0" title="0">{
+                defer close(shutdownDone)
+                &lt;-ctx.Done()
+                shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+                defer cancel()
+                if err := server.Shutdown(shutdown); err != nil </span><span class="cov0" title="0">{
+                        log.Printf("shutdown: %v", err)
+                }</span>
+        }()
+        <span class="cov0" title="0">log.Printf("Calculator listening on %s", addr)
+        if err := server.ListenAndServe(); err != nil &amp;&amp; !errors.Is(err, http.ErrServerClosed) </span><span class="cov0" title="0">{
+                log.Fatal(err)
+        }</span>
+        // Wait for active requests to drain before the main goroutine exits.
+        <span class="cov0" title="0">&lt;-shutdownDone</span>
+}
+</pre>
+
+		<pre class="file" id="file1" style="display: none">// Package calculator contains arithmetic rules independent of HTTP or UI code.
+package calculator
+
+import (
+        "errors"
+        "math"
+)
+
+var (
+        ErrOperation      = errors.New("Choose a supported operation.")
+        ErrOperand        = errors.New("Provide the required finite numeric operands.")
+        ErrDivisionByZero = errors.New("Cannot divide by zero.")
+        ErrNegativeRoot   = errors.New("Cannot take the square root of a negative number.")
+        ErrResult         = errors.New("The result is outside the supported real-number range.")
+)
+
+// Calculate applies the selected operation. Square root uses only a.
+// Percentage means b percent of a. Power follows math.Pow, including 0^0 = 1.
+func Calculate(operation string, a, b *float64) (float64, error) <span class="cov8" title="35">{
+        binary := false
+        switch operation </span>{
+        case "add", "subtract", "multiply", "divide", "power", "percentage":<span class="cov8" title="29">
+                binary = true</span>
+        case "sqrt":<span class="cov4" title="4"></span>
+        default:<span class="cov2" title="2">
+                return 0, ErrOperation</span>
+        }
+        <span class="cov8" title="33">if !finite(a) || (binary &amp;&amp; !finite(b)) || (!binary &amp;&amp; b != nil) </span><span class="cov4" title="6">{
+                return 0, ErrOperand
+        }</span>
+
+        <span class="cov8" title="27">var result float64
+        switch operation </span>{
+        case "add":<span class="cov3" title="3">
+                result = *a + *b</span>
+        case "subtract":<span class="cov1" title="1">
+                result = *a - *b</span>
+        case "multiply":<span class="cov2" title="2">
+                result = *a * *b</span>
+        case "divide":<span class="cov4" title="5">
+                if *b == 0 </span><span class="cov2" title="2">{
+                        return 0, ErrDivisionByZero
+                }</span>
+                <span class="cov3" title="3">result = *a / *b</span>
+        case "power":<span class="cov4" title="6">
+                result = math.Pow(*a, *b)</span>
+        case "sqrt":<span class="cov3" title="3">
+                if *a &lt; 0 </span><span class="cov1" title="1">{
+                        return 0, ErrNegativeRoot
+                }</span>
+                <span class="cov2" title="2">result = math.Sqrt(*a)</span>
+        case "percentage":<span class="cov5" title="7">
+                result = *a * (*b / 100)</span>
+        }
+        <span class="cov7" title="24">if math.IsNaN(result) || math.IsInf(result, 0) </span><span class="cov4" title="5">{
+                return 0, ErrResult
+        }</span>
+        <span class="cov7" title="19">return result, nil</span>
+}
+
+func finite(value *float64) bool <span class="cov10" title="60">{
+        return value != nil &amp;&amp; !math.IsNaN(*value) &amp;&amp; !math.IsInf(*value, 0)
+}</span>
+</pre>
+
+		<pre class="file" id="file2" style="display: none">// Package httpapi translates HTTP requests into calculator calls.
+package httpapi
+
+import (
+        "encoding/json"
+        "errors"
+        "io"
+        "mime"
+        "net/http"
+
+        "calculator/backend/internal/calculator"
+)
+
+type request struct {
+        Operation string   `json:"operation"`
+        A         *float64 `json:"a"`
+        B         *float64 `json:"b,omitempty"`
+}
+
+type apiError struct {
+        Code    string `json:"code"`
+        Message string `json:"message"`
+}
+
+// NewHandler returns the API routes and optional frontend handler.
+func NewHandler(frontend http.Handler) http.Handler <span class="cov2" title="2">{
+        mux := http.NewServeMux()
+        mux.HandleFunc("/api/calculate", calculate)
+        mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) </span><span class="cov2" title="2">{
+                if r.Method != http.MethodGet </span><span class="cov1" title="1">{
+                        w.Header().Set("Allow", http.MethodGet)
+                        writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Use GET for this endpoint.")
+                        return
+                }</span>
+                <span class="cov1" title="1">writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})</span>
+        })
+        <span class="cov2" title="2">mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) </span><span class="cov1" title="1">{
+                writeError(w, http.StatusNotFound, "not_found", "API endpoint not found.")
+        }</span>)
+        <span class="cov2" title="2">if frontend != nil </span><span class="cov1" title="1">{
+                mux.Handle("/", frontend)
+        }</span>
+        <span class="cov2" title="2">return mux</span>
+}
+
+func calculate(w http.ResponseWriter, r *http.Request) <span class="cov9" title="36">{
+        if r.Method != http.MethodPost </span><span class="cov2" title="2">{
+                w.Header().Set("Allow", http.MethodPost)
+                writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Use POST for this endpoint.")
+                return
+        }</span>
+        <span class="cov9" title="34">mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+        if err != nil || mediaType != "application/json" </span><span class="cov2" title="2">{
+                writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Send Content-Type: application/json.")
+                return
+        }</span>
+        <span class="cov9" title="32">r.Body = http.MaxBytesReader(w, r.Body, 4096)
+        decoder := json.NewDecoder(r.Body)
+        decoder.DisallowUnknownFields()
+        var input request
+        if err := decoder.Decode(&amp;input); err != nil </span><span class="cov6" title="8">{
+                invalidJSON(w, err)
+                return
+        }</span>
+        // A second value (or malformed trailing data) must not be silently ignored.
+        <span class="cov8" title="24">if err := decoder.Decode(&amp;struct{}{}); err != io.EOF </span><span class="cov3" title="3">{
+                invalidJSON(w, err)
+                return
+        }</span>
+        <span class="cov8" title="21">result, err := calculator.Calculate(input.Operation, input.A, input.B)
+        if err != nil </span><span class="cov6" title="11">{
+                writeError(w, http.StatusBadRequest, "invalid_calculation", err.Error())
+                return
+        }</span>
+        <span class="cov6" title="10">writeJSON(w, http.StatusOK, map[string]float64{"result": result})</span>
+}
+
+func invalidJSON(w http.ResponseWriter, err error) <span class="cov6" title="11">{
+        var tooLarge *http.MaxBytesError
+        if errors.As(err, &amp;tooLarge) </span><span class="cov2" title="2">{
+                writeError(w, http.StatusRequestEntityTooLarge, "body_too_large", "Request body must not exceed 4096 bytes.")
+                return
+        }</span>
+        <span class="cov6" title="9">writeError(w, http.StatusBadRequest, "invalid_json", "Send one JSON object with operation and numeric a/b fields only.")</span>
+}
+
+func writeError(w http.ResponseWriter, status int, code, message string) <span class="cov9" title="28">{
+        writeJSON(w, status, struct {
+                Error apiError `json:"error"`
+        }{Error: apiError{Code: code, Message: message}})
+}</span>
+
+func writeJSON(w http.ResponseWriter, status int, value any) <span class="cov10" title="39">{
+        w.Header().Set("Content-Type", "application/json")
+        w.Header().Set("X-Content-Type-Options", "nosniff")
+        w.WriteHeader(status)
+        // Response values contain only strings and finite numbers.
+        _ = json.NewEncoder(w).Encode(value)
+}</span>
+</pre>
+
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
